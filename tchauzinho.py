@@ -1,16 +1,18 @@
 import cv2
 import mediapipe as mp
 import math
+from time import time
 
-# Função para calcular a distância entre dois pontos
-def calculate_distance(point1, point2):
-    return math.sqrt((point2.x - point1.x)**2 + (point2.y - point1.y)**2)
+turns = 0  #int variable --> saves the number of times the wrist-motion way changes
+old_ang = None #int variable --> saves the hand wrist-motion angle from the last loop
+motion = None #boolean variable --> 1 == increasing angle | 2 == decreasing angle
+old_motion = None #boolean variable --> saves the wrist-motion way from the last loop
+start_time = None
 
 # Inicializar o modelo MediaPipe Hands
 mp_hands = mp.solutions.hands
 hands = mp_hands.Hands()
 mp_drawing = mp.solutions.drawing_utils  # Importar a função draw_landmarks
-
 
 
 
@@ -62,33 +64,57 @@ while cap.isOpened():
     if results.multi_hand_landmarks:
         for hand_landmarks in results.multi_hand_landmarks:
             if is_hand_open(hand_landmarks):
-                print("hand is open!")
+
+                if start_time == None:
+                    start_time = time()
+
                 # Extrair coordenadas dos pontos-chave da mão
                 wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-                thumb_tip = hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]
-                index_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]
+                middle_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
 
-                for landmark in [wrist, thumb_tip, index_finger_tip]:
-                    # Get pixel coordinates of the landmark
-                    height, width, _ = frame.shape  # Get frame dimensions
-                    cx, cy = int(landmark.x * width), int(landmark.y * height)  # Convert normalized coordinates to pixel coordinates
+                #get writs and middle_finger_tip positions
+                height, width, _ = frame.shape  # Get frame dimensions
+                wrist_x, wrist_y = int( wrist.x * width ), int(wrist.y * height )
+                middle_X, middle_y = int( middle_finger_tip.x * width ), int( middle_finger_tip.y * height )
 
-                    # Print the pixel coordinates of specific landmarks
-                    if landmark == hand_landmarks.landmark[mp_hands.HandLandmark.INDEX_FINGER_TIP]:
-                        print(f"Index Finger Tip - X: {cx}, Y: {cy}")
-                    elif landmark == hand_landmarks.landmark[mp_hands.HandLandmark.THUMB_TIP]:
-                        print(f"Thumb Tip - X: {cx}, Y: {cy}")
 
-                # Calcular distâncias relevantes
-                dist_thumb_to_wrist = calculate_distance(thumb_tip, wrist)
-                dist_index_to_wrist = calculate_distance(index_finger_tip, wrist)
-
-                # Verificar se a mão está em posição de "tchauzinho"
-                if dist_thumb_to_wrist < dist_index_to_wrist:
-                    cv2.putText(frame, 'Tchauzinho detectado!', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+                #calculate wrist-motion angle
+                if middle_X == wrist_x:
+                    hand_angulation = 90
                 else:
-                    break
+                    hand_angulation = int( math.degrees( math.atan( ( wrist_y - middle_y ) / ( middle_X - wrist_x ) ) ) / 25 )
+
+
+                #checking for wrist-motion turns
+                if old_ang != None:
+                    if hand_angulation > old_ang:
+                        motion = 1
+                    elif hand_angulation < old_ang:
+                        motion = 0
+                
+                if old_motion != None:
+                    if old_motion != motion:
+                        turns += 1
+                        start_time = time()
+                
+                old_motion = motion
+                old_ang = hand_angulation
+
+                if time() - start_time >= 1:
+                    old_motion = None
+                    old_ang = None
+                    turns = 0
+                    start_time = None
+
+                if turns >= 4:
+                    cv2.putText(frame, f'tchauzinho detected!!', (int(width/2), int(height/2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+                cv2.putText(frame, f'turns {turns} | angulo: {hand_angulation*25}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+
+            else:
+                old_motion = None
+                old_ang = None
+                turns = 0
+                start_time = None
 
             # Desenhar landmarks da mão no frame
             mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
