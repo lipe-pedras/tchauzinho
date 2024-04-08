@@ -62,63 +62,64 @@ while cap.isOpened():
 
     # Verificar se mãos são detectadas
     if results.multi_hand_landmarks:
-        for hand_landmarks in results.multi_hand_landmarks:
-            if is_hand_open(hand_landmarks):
+        hand_landmarks = results.multi_hand_landmarks[-1]
+        if is_hand_open(hand_landmarks):
 
-                if start_time == None:
-                    start_time = time()
+            if start_time == None:
+                start_time = time()
 
-                # Extrair coordenadas dos pontos-chave da mão
-                wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
-                middle_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
+            # Extrair coordenadas dos pontos-chave da mão
+            wrist = hand_landmarks.landmark[mp_hands.HandLandmark.WRIST]
+            middle_finger_tip = hand_landmarks.landmark[mp_hands.HandLandmark.MIDDLE_FINGER_TIP]
 
-                #get writs and middle_finger_tip positions
-                height, width, _ = frame.shape  # Get frame dimensions
-                wrist_x, wrist_y = int( wrist.x * width ), int(wrist.y * height )
-                middle_X, middle_y = int( middle_finger_tip.x * width ), int( middle_finger_tip.y * height )
-
-
-                #calculate wrist-motion angle
-                if middle_X == wrist_x:
-                    hand_angulation = 90
-                else:
-                    hand_angulation = int( math.degrees( math.atan( ( wrist_y - middle_y ) / ( middle_X - wrist_x ) ) ) / 25 )
+            #get writs and middle_finger_tip positions
+            height, width, _ = frame.shape  # Get frame dimensions
+            wrist_x, wrist_y = int( wrist.x * width ), int(wrist.y * height )
+            middle_X, middle_y = int( middle_finger_tip.x * width ), int( middle_finger_tip.y * height )
 
 
-                #checking for wrist-motion turns
-                if old_ang != None:
-                    if hand_angulation > old_ang:
-                        motion = 1
-                    elif hand_angulation < old_ang:
-                        motion = 0
-                
-                if old_motion != None:
-                    if old_motion != motion:
-                        turns += 1
-                        start_time = time()
-                
-                old_motion = motion
-                old_ang = hand_angulation
-
-                if time() - start_time >= 1:
-                    old_motion = None
-                    old_ang = None
-                    turns = 0
-                    start_time = None
-
-                if turns >= 4:
-                    cv2.putText(frame, f'tchauzinho detected!!', (int(width/2), int(height/2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-                cv2.putText(frame, f'turns {turns} | angulo: {hand_angulation*25}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
-
+            #calculate wrist-motion angle
+            if middle_X == wrist_x:
+                hand_angulation = 90
             else:
+                hand_angulation = int( math.degrees( math.atan( ( wrist_y - middle_y ) / ( middle_X - wrist_x ) ) ) / 25 )
+
+
+            #checking for wrist-motion turns
+            if old_ang != None:
+                if hand_angulation > old_ang:
+                    motion = 1
+                elif hand_angulation < old_ang:
+                    motion = 0
+            
+            if old_motion != None:
+                if old_motion != motion:
+                    turns += 1
+                    start_time = time()
+            
+            old_motion = motion
+            old_ang = hand_angulation
+
+            if time() - start_time >= 1:
                 old_motion = None
                 old_ang = None
                 turns = 0
                 start_time = None
 
-            # Desenhar landmarks da mão no frame
-            mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+            if turns >= 4:
+                cv2.putText(frame, f'tchauzinho detected!!', (int(width/2), int(height/2)), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
+            cv2.putText(frame, f'turns {turns} | angulo: {hand_angulation*25}', (50, 50), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
+        else:
+            old_motion = None
+            old_ang = None
+            turns = 0
+            start_time = None
+
+        # Desenhar landmarks da mão no frame
+        mp_drawing.draw_landmarks(frame, hand_landmarks, mp_hands.HAND_CONNECTIONS)
+
+        cv2.putText(frame, f'Hands: {len(results.multi_hand_landmarks)}', (50, 75), cv2.FONT_HERSHEY_SIMPLEX, 1, (0, 255, 0), 2)
 
     # Exibir o frame resultante
     cv2.imshow('Tchauzinho', frame)
